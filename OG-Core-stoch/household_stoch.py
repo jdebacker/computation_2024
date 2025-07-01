@@ -66,6 +66,9 @@ def marg_ut_labor(n, chi_n, p):
         output (array_like): marginal disutility of labor supply
 
     """
+    # print("In marg_ut_labor")
+    # print("n = ", n)
+    # print("params = ", p.b_ellipse, p.ltilde, p.upsilon, chi_n)
     nvec = n
     if np.ndim(nvec) == 0:
         nvec = np.array([nvec])
@@ -173,19 +176,27 @@ def inv_mu_c(value, sigma):
     Compute the inverse of the marginal utility of consumption.
 
     .. math::
-        c = \left(\frac{1}{val}\right)^{-1/\sigma}
+    c = \left(\frac{1}{val}\right)^{-1/\sigma}
 
     Args:
-        value (array_like): marginal utility of consumption
-        sigma (scalar): coefficient of relative risk aversion
+    value (array_like): marginal utility of consumption
+    sigma (scalar): coefficient of relative risk aversion
 
     Returns:
-        output (array_like): household consumption
+    output (array_like): household consumption
 
     """
     if np.ndim(value) == 0:
         value = np.array([value])
-    output = value ** (-1 / sigma)  # need value > 0
+    epsilon = .0001
+    value_cnstr = value < epsilon
+    output = np.zeros(value.shape)
+    output[~value_cnstr] = value[~value_cnstr] ** (-1 / sigma)
+    # where value is constrained, we use a Taylor expansion:
+    # c = epsilon ** (-1 / sigma) - 1/sigma * epsilon ** (-(1+sigma)/sigma) * (value - epsilon)
+    b2 = (-1 / sigma) * (epsilon ** (-(1 + sigma) / sigma))
+    b1 = epsilon ** (-1 / sigma)
+    output[value_cnstr] = b1 + b2 * (value[value_cnstr] - epsilon)
     output = np.squeeze(output)
     return output
 
@@ -377,6 +388,8 @@ def c_from_n(
         p_tilde * np.exp(p.g_y * (1 - p.sigma)) * marg_ut_labor(n, chi_n, p)
     )
     denominator = w * e * z * deriv
+    # print("numerator:", numerator,  marg_ut_labor(n, chi_n, p), (1 - p.sigma))
+    # print("denominator:", denominator, deriv)
     c = inv_mu_c(numerator / denominator, p.sigma)
 
     return c
@@ -1116,6 +1129,7 @@ def EOL_system(
     """
     # change n to array
     n = np.atleast_1d(n)
+    # print("EOL n, b = ", n, b)
     # use labor supply equation to get consumption
     c = c_from_n(
         n,
@@ -1134,6 +1148,7 @@ def EOL_system(
         p,
         method,
     )
+    # print("EOL c = ", c)
     # use consumption to get savings from savings Euler equation
     b_splus1 = b_from_c_EOL(c, p_tilde, j, p.sigma, p)
     net_tax = tax.net_taxes(
@@ -1155,6 +1170,7 @@ def EOL_system(
         p,
     )
     # check the budget constraint
+    # print("EOL c, n, b, bps1 = ", c, n, b, b_splus1)
     BC_error = BC_residual(
         c, n, b, b_splus1, r, w, p_tilde, e, z, bq, net_tax, p
     )
@@ -1315,7 +1331,7 @@ def solve_HH(
                 p,
                 method,
             )
-            eps = 1e-8
+            eps = 1e-2  #1e-8
             n = opt.brentq(EOL_system, eps, p.ltilde - eps, args=args)
             n_policy[-1, b_index, z_index] = n
             c_policy[-1, b_index, z_index] = c_from_n(

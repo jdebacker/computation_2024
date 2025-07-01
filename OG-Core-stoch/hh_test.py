@@ -7,6 +7,7 @@ from ogcore.parameters import Specifications
 import household_stoch as household
 from ogcore import tax, SS
 import ogcore.household as hh_core
+import scipy.interpolate as itp
 
 
 # %%
@@ -1621,6 +1622,7 @@ def test_solve_HH():
     assert np.isclose(
         foc_lab_resid, 0, atol=1e-4
     )  # persistent error - can't get it lower?
+    assert False
 
 
 def test_ogcore_HH_soln():
@@ -1630,23 +1632,30 @@ def test_ogcore_HH_soln():
     household_stoch.solve_HH. The test is run for a single ability type.
     """
     p = Specifications()
+    print("Remittances params: ", p.alpha_RM_T)
     # Change J to one to test a single ability type
     p.J = 1
-    p.lambdas = np.array([1.0])
+    p.lambdas = np.array([1.0]).reshape(1, p.J)
     p.e = np.array([[[1.0]]])  # Effective labor units
     p.beta = np.array([0.96])  # Discount factor
+    p.labor_income_tax_noncompliance_rate = np.zeros((p.T, p.J))
+    p.capital_income_tax_noncompliance_rate = np.zeros((p.T, p.J))
+    print("Shape of eta = ", p.eta.shape, p.eta_RM.shape)
+    p.eta = p.eta.sum(axis=-1).reshape(p.T + p.S, p.S, p.J)
+    p.eta_RM = p.eta.sum(axis=-1).reshape(p.T + p.S, p.S, p.J)
+    p.ubi_nom_array = p.ubi_nom_array.sum(axis=-1).reshape(p.T + p.S, p.S, p.J) # Aggregate eta
 
     # Call the inner loop to get the OG-Core solution
-    bssmat = (np.ones((p.S, p.J)) * 0.05,)
-    nssmat = (np.ones((p.S, p.J)) * 0.5,)
-    r_p = (0.05,)
-    r = (r_p,)
-    w = (1.2,)
-    p_m = (1.0,)
-    Y = (1.4,)
-    BQ = (0.02,)
-    TR = (0.01,)
-    Ig_baseline = (0.0,)
+    bssmat = np.ones((p.S, p.J)) * 0.05
+    nssmat = np.ones((p.S, p.J)) * 0.5
+    r_p = 0.05
+    r = r_p
+    w = 1.2
+    p_m = np.array([1.0])
+    Y = np.array([1.4])
+    BQ = np.ones((1, p.J)) * 0.02
+    TR = np.array([0.01])
+    Ig_baseline = 0.0
     factor = 100_000
     outer_loop_vars = (
         bssmat,
@@ -1662,10 +1671,10 @@ def test_ogcore_HH_soln():
         factor,
     )
     inner_loop_tuple = SS.inner_loop(outer_loop_vars, p, None)
-    b_core = inner_loop_tuple[0]
+    b_core = inner_loop_tuple[1]
     b_s = np.zeros((p.S, p.J))  # Savings from the inner loop
     b_s[1:, :] = b_core[:-1, :]  # Shift savings down for the next period
-    n_core = inner_loop_tuple[1]
+    n_core = inner_loop_tuple[2]
     tr = hh_core.get_tr(TR, 0, p, "SS")
     bq = hh_core.get_bq(BQ, 0, p, "SS")
     num_params = len(p.etr_params[-1][0])
@@ -1686,14 +1695,15 @@ def test_ogcore_HH_soln():
         tr,
         0,  # ubi = 0
         0,  # theta = 0
-        None,
-        None,
+        None,  # t
+        0,  # j
         False,
         "SS",
-        np.squeeze(p.e[-1, :, :]),
+        p.e[-1, :, :],
         etr_params_3D,
         p,
     )
+    print("Shape of taxss:", taxss.shape)
     c_core = hh_core.get_cons(
         r_p,
         w,
@@ -1714,12 +1724,14 @@ def test_ogcore_HH_soln():
     p.z_grid = np.array([1.0])
     p.Z = np.array([[1.0]])
     # create b_grid for solve_HH
-    b_grid = np.linspace(0.001, 20, 100)  # Asset grid for the test
+    b_grid = np.linspace(0.001, 12, 100)  # Asset grid for the test
+    # change shape of e
+    p.e = np.ones((p.S))  # Effective labor units
     # call solve_HH with the same parameters as in the inner loop
-    b_policy, c_policy, n_policy = household.Solve_HH(
-        r_p,
-        w,
-        1.0,  # p_tilde
+    b_policy, c_policy, n_policy = household.solve_HH(
+        np.ones(p.S) * r_p,
+        np.ones(p.S) * w,
+        np.ones(p.S) * 1.0,  # p_tilde
         factor,
         tr,
         bq,
@@ -1727,28 +1739,50 @@ def test_ogcore_HH_soln():
         b_grid,
         p.sigma,
         0,  # theta
-        p.chi_n[-1, :, 0],  # chi_n for the last period
+        p.chi_n[-1, :],  # chi_n for the last period
         p.rho[-1, :],  # rho for the last period
         p.e,
-        p.etr_params[-1, :, :],  # etr_params for the last period
-        p.mtrx_params[-1, :, :],  # mtrx_params for the last
-        p.mtry_params[-1, :, :],  # mtry_params for the last period
+        np.array(p.etr_params)[-1, :, :],  # etr_params for the last period
+        np.array(p.mtrx_params)[-1, :, :],  # mtrx_params for the last
+        np.array(p.mtry_params)[-1, :, :],  # mtry_params for the last period
         0,
         100,  # t, the time index
         p,
         "SS",
     )
     # Extrapolate linearly for points on the OG-Core "grid"
-    c_policy[s, :, z_index] = np.interp(
-        b_grid, b_clean, c_interp, left=c_interp[0], right=c_interp[-1]
-    )
-    n_policy[s, :, z_index] = np.interp(
-        b_grid, b_clean, n_interp, left=n_interp[0], right=n_interp[-1]
-    )
-    b_policy[s, :, z_index] = np.interp(
-        b_grid,
-        b_clean,
-        b_splus1_interp,
-        left=b_splus1_interp[0],
-        right=b_splus1_interp[-1],
-    )
+    b_interpolated = np.zeros(p.S)
+    n_interpolated = np.zeros(p.S)
+    c_interpolated = np.zeros(p.S)
+
+    for s in range(p.S):
+        # Interpolate the policy functions for each age
+        # b_interpolated[s] = np.interp(
+        #     b_s[s, 0], b_grid, b_policy[s, :, 0]
+        # )
+        # n_interpolated[s] = np.interp(
+        #     b_s[s, 0], b_grid, n_policy[s, :, 0]
+        # )
+        # c_interpolated[s] = np.interp(
+        #     b_s[s, 0], b_grid, c_policy[s, :, 0]
+        # )
+        b_itp = itp.PchipInterpolator(
+            b_grid, b_policy[s, :, 0], extrapolate=True
+        )
+        n_itp = itp.PchipInterpolator(
+            b_grid, n_policy[s, :, 0], extrapolate=True
+        )
+        c_itp = itp.PchipInterpolator(
+            b_grid, c_policy[s, :, 0], extrapolate=True
+        )
+        b_interpolated[s] = b_itp(b_s[s, 0])
+        n_interpolated[s] = n_itp(b_s[s, 0])
+        c_interpolated[s] = c_itp(b_s[s, 0])
+    # Check that the interpolated values match the core values
+    print("Max core labor = ", np.max(n_core[:, 0]), np.max(n_interpolated))
+    assert np.allclose(b_interpolated, b_core[:, 0], atol=1e-5)
+    assert np.allclose(n_interpolated, n_core[:, 0], atol=1e-5)
+    # assert np.allclose(c_interpolated, c_core[:, 0], atol=1e-5)
+
+    print("Dims of OG-Core output:", b_core.shape, c_core.shape, n_core.shape)
+    # assert False
