@@ -574,7 +574,7 @@ def setup_c_from_b_splus1_params(taxes=False):
     # Manually calculate expected consumption
     beta = p.beta[j]
     bequest_utility = rho_s * household.marg_ut_beq(b_splus1, p.sigma, j, p)
-    
+
     # Calculate expectation of marginal utility
     consumption_utility_matrix = np.zeros((b_splus1.shape[0], p.z_grid.shape[0]))
     for zp_index, zp in enumerate(p.z_grid):
@@ -585,10 +585,10 @@ def setup_c_from_b_splus1_params(taxes=False):
         )
         mtr_wealth = tax.MTR_wealth(b_splus1, p.h_wealth[t+1], p.m_wealth[t+1], p.p_wealth[t+1])
         deriv = (1 + r_splus1) - (r_splus1 * mtr_capital) - mtr_wealth
-        
+
         mu_c_splus1 = household.marg_ut_cons(c_splus1_policy[:, zp_index], p.sigma)
         consumption_utility_matrix[:, zp_index] = deriv * mu_c_splus1 / p_tilde_splus1
-    
+
     prob_z_splus1 = p.Z[z_index, :]
     E_MU_c = consumption_utility_matrix @ prob_z_splus1
 
@@ -620,9 +620,9 @@ def test_c_from_b_splus1(setup_params):
     Test of the household_stoch.c_from_b_splus1 function.
     """
     args, expected_c = setup_c_from_b_splus1_params(**setup_params)
-    
+
     test_c = household.c_from_b_splus1(*args)
-    
+
     assert np.allclose(test_c, expected_c)
 
 # %% Tests for FOC_labor and get_y
@@ -900,7 +900,7 @@ def setup_EOL_system_params(vector=False):
     p.J = 1
     p.S = 3
     p.T = 3
-    # p.retire = p.S 
+    # p.retire = p.S
     p.retire = np.array([p.S]) #Changed to array
     # Use s-specific chi_n and 3D e, as EOL is age-specific
     p.chi_n = np.array([0.8, 0.85, 0.9]).reshape(3, 1)
@@ -1040,7 +1040,7 @@ def setup_HH_system_params(scalar_case=True):
     # need n as array for pension calculations
     n = np.atleast_1d(n)
 
-    # Manually calculate expected residuals 
+    # Manually calculate expected residuals
     net_tax = tax.net_taxes(
         r, w, b, n, bq, factor, tr, ubi, theta, t, j, False,
         method, e_s * z, etr_params_s, p
@@ -1060,7 +1060,7 @@ def setup_HH_system_params(scalar_case=True):
         x, c, b_splus1, r, w, p_tilde, factor, tr, ubi, bq, theta, e_s, z,
         chi_n_s, etr_params_s, mtrx_params_s, j, t, p, method
     )
-    
+
     # THE FIX: Squeeze the expected error for the scalar case to match the
     # shape of the function's output. The vector case is returned as is.
     if scalar_case:
@@ -1118,7 +1118,7 @@ p_solve_hh.chi_b = np.array([2.0])
 p_solve_hh.ltilde = 1.0
 p_solve_hh.b_ellipse = 5.0
 p_solve_hh.upsilon = 2.0
-p_solve_hh.retire = np.array([p_solve_hh.S + 1]) # need as array?
+p_solve_hh.retire = np.array([p_solve_hh.S + 1]) # need as array?  #TODO: note that this is by T, not S
 
 # Set 3D and 2D arrays for parameters as expected by functions
 p_solve_hh.e = np.tile(
