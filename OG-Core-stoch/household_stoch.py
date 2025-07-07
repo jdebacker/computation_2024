@@ -385,7 +385,7 @@ def c_from_n(
         )
     )
     numerator = (
-        p_tilde * np.exp(p.g_y * (1 - p.sigma)) * marg_ut_labor(n, chi_n, p)
+        p_tilde * marg_ut_labor(n, chi_n, p)
     )
     denominator = w * e * z * deriv
     # print("numerator:", numerator,  marg_ut_labor(n, chi_n, p), (1 - p.sigma))
@@ -552,7 +552,7 @@ def b_from_c_EOL(c, p_tilde, j, sigma, p):
     Returns:
         b (array_like): household savings at the end of life
     """
-    b = c * (p.chi_b[j] * p_tilde) ** (1 / sigma)
+    b = (c * (p.chi_b[j] * p_tilde) ** (1 / sigma)) / np.exp(p.g_y)
     return b
 
 
