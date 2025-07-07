@@ -744,7 +744,7 @@ def c_from_b_splus1(
     # Final consumption calculation
     # c = inv_mu_c((p_tilde ** (p.sigma)) * mu_c_rhs, p.sigma)
     # is it correct to use p_tilde ** (p.sigma) here?
-    c = inv_mu_c(p_tilde * mu_c_rhs, p.sigma)
+    c = np.exp(p.g_y) * inv_mu_c(p_tilde * mu_c_rhs, p.sigma)
 
     return c
 
