@@ -738,8 +738,7 @@ def c_from_b_splus1(
     E_MU_c = consumption_utility_matrix @ prob_z_splus1
 
     # Combine bequest utility and expectation of future consumption utility
-    growth_term = np.exp(p.g_y * (1 - p.sigma))
-    mu_c_rhs = bequest_utility + beta * (1 - rho) * growth_term * E_MU_c
+    mu_c_rhs = bequest_utility + beta * (1 - rho) * E_MU_c
 
     # Final consumption calculation
     # c = inv_mu_c((p_tilde ** (p.sigma)) * mu_c_rhs, p.sigma)

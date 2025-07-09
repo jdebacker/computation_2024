@@ -656,9 +656,9 @@ def setup_c_from_b_splus1_params(taxes=False):
     E_MU_c = consumption_utility_matrix @ prob_z_splus1
 
     # Final calculation using the *correct* Euler equation
-    growth_term = np.exp(p.g_y * (1 - p.sigma))
-    mu_c_rhs = bequest_utility + beta * (1 - rho_s) * growth_term * E_MU_c
-    expected_c = household.inv_mu_c(p_tilde_s * mu_c_rhs, p.sigma)
+    growth_term = np.exp(p.g_y)
+    mu_c_rhs = bequest_utility + beta * (1 - rho_s) * E_MU_c
+    expected_c = growth_term * household.inv_mu_c(p_tilde_s * mu_c_rhs, p.sigma)
 
     # Gather args for function call
     args = (
