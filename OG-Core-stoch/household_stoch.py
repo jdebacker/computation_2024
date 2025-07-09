@@ -1330,7 +1330,7 @@ def solve_HH(
                 p,
                 method,
             )
-            eps = 1e-2  #1e-8
+            eps = 1e-8
             n = opt.brentq(EOL_system, eps, p.ltilde - eps, args=args)
             n_policy[-1, b_index, z_index] = n
             c_policy[-1, b_index, z_index] = c_from_n(

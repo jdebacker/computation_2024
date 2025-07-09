@@ -1620,9 +1620,8 @@ def test_solve_HH():
     # The residuals should be very close to zero
     assert np.isclose(bc_resid, 0, atol=1e-5)
     assert np.isclose(
-        foc_lab_resid, 0, atol=1e-4
-    )  # persistent error - can't get it lower?
-    assert False
+        foc_lab_resid, 0, atol=1e-7
+    )
 
 
 def test_ogcore_HH_soln():
