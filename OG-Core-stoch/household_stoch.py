@@ -584,7 +584,7 @@ def get_cons(r, w, p_tilde, b, b_splus1, n, bq, net_tax, e, z, p):
     """
     cons = (
         (1 + r) * b + w * e * z * n + bq - b_splus1 * np.exp(p.g_y) - net_tax
-    ) / p_tilde
+    ) / p_tilde  # TODO: add consumption taxes, remittances, pension income
     return cons
 
 
@@ -1356,7 +1356,7 @@ def solve_HH(
 
     # iterate backwards with Euler equation
     for s in range(p.S - 2, -1, -1):
-        for z_index, z in enumerate(p.z_grid):
+        for z_index, z in enumerate(p.z_grid):  #NOTE: Maybe able to parallelize this loop
             c = c_from_b_splus1(
                 r[s + 1],
                 w[s + 1],
@@ -1381,7 +1381,7 @@ def solve_HH(
             current_t = t[s] if hasattr(t, "__len__") else t
             for b_splus1_index, b_splus1 in enumerate(
                 b_grid
-            ):  # Added enumerate
+            ):  # Added enumerate  #NOTE: may be able to parallelize this loop (or one above)
                 args = (
                     c[b_splus1_index],
                     b_splus1,
@@ -1421,6 +1421,7 @@ def solve_HH(
             c_interp = c[unique_idx]
             n_interp = n[unique_idx]
             b_splus1_interp = b_grid[unique_idx]
+
             # Extrapolate linearly for points outside the solved endogenous grid
             #c_policy[s, :, z_index] = np.interp(b_grid, b_clean, c_interp, left=c_interp[0], right=c_interp[-1])
             #n_policy[s, :, z_index] = np.interp(b_grid, b_clean, n_interp, left=n_interp[0], right=n_interp[-1])
@@ -1433,5 +1434,7 @@ def solve_HH(
             n_policy[s, :, z_index] = n_itp(b_grid)
             b_policy[s, :, z_index] = b_splus1_itp(b_grid)
 
+    print("Labor supply for young with no assets:", n_policy[0, 0, :])
+    print("Labor supply for young with little assets:", n_policy[0, 1, :])
 
     return b_policy, c_policy, n_policy

@@ -1856,7 +1856,7 @@ def test_ogcore_HH_soln():
     # print("savings interpolated: ", b_interpolated)
     # print("B grid ", b_grid)
     # assert np.allclose(b_interpolated, b_core[:, 0], atol=1e-5)
-    print("Labor supply with low assets 2: ",  n_interpolated[0], n_itp(0.0), n_itp(0.001))
+    # print("Labor supply with low assets 2: ",  n_interpolated[0], n_itp(0.0), n_itp(0.001))
     assert np.allclose(n_interpolated, n_core[:, 0], atol=1e-5)
     # assert np.allclose(c_interpolated, c_core[:, 0], atol=1e-5)
 
