@@ -1643,6 +1643,11 @@ def test_ogcore_HH_soln():
     p.eta = p.eta.sum(axis=-1).reshape(p.T + p.S, p.S, p.J)
     p.eta_RM = p.eta.sum(axis=-1).reshape(p.T + p.S, p.S, p.J)
     p.ubi_nom_array = p.ubi_nom_array.sum(axis=-1).reshape(p.T + p.S, p.S, p.J) # Aggregate eta
+    # Need to turn off Social Security since not in OG-Stoch
+    p.replacement_rate_adjust = np.zeros((p.T + p.S))
+    p.PIA_rate_bkt_1 = 0.0
+    p.PIA_rate_bkt_2 = 0.0
+    p.PIA_rate_bkt_3 = 0.0
 
     # Call the inner loop to get the OG-Core solution
     bssmat = np.ones((p.S, p.J)) * 0.05
@@ -1777,9 +1782,81 @@ def test_ogcore_HH_soln():
         b_interpolated[s] = b_itp(b_s[s, 0])
         n_interpolated[s] = n_itp(b_s[s, 0])
         c_interpolated[s] = c_itp(b_s[s, 0])
+
+    # Create a plot to visualize the results
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(12, 8))
+    plt.scatter(b_s[:, 0], b_core[:, 0], color='red', label='OG-Core', s=10)
+    plt.scatter(b_s[:, 0], b_interpolated, color='blue', label='b_interpolated', s=10)
+    plt.scatter(b_grid, b_itp(b_grid), color='green', label='b_itp', s=10)
+    plt.title('Savings Policy Function')
+    plt.xlabel('Assets')
+    plt.ylabel('Savings')
+    plt.legend()
+    plt.savefig("savings_policy_function.png")
+
+    plt.figure(figsize=(12, 8))
+    plt.scatter(b_s[:, 0], n_core[:, 0], color='red', label='OG-Core', s=10)
+    plt.scatter(b_s[:, 0], n_interpolated, color='blue', label='n_interpolated', s=10)
+    plt.scatter(b_grid, n_itp(b_grid), color='green', label='n_itp', s=10)
+    plt.title('Labor Policy Function')
+    plt.xlabel('Assets')
+    plt.ylabel('Labor Supply')
+    plt.legend()
+    plt.savefig("labor_policy_function.png")
+
+    plt.figure(figsize=(12, 8))
+    plt.scatter(b_s[:, 0], c_core[:, 0], color='red', label='OG-Core', s=10)
+    plt.scatter(b_s[:, 0], c_interpolated, color='blue', label='c_interpolated', s=10)
+    plt.scatter(b_grid, c_itp(b_grid), color='green', label='c_itp', s=10)
+    plt.title('Consumption Policy Function')
+    plt.xlabel('Assets')
+    plt.ylabel('Consumption')
+    plt.legend()
+    plt.savefig("consumption_policy_function.png")
+
+
+    ages = np.arange(p.S) + 20
+    plt.figure(figsize=(12, 8))
+    plt.scatter(ages, b_core[:, 0], color='red', label='OG-Core', s=10)
+    plt.scatter(ages, b_interpolated, color='blue', label='b_interpolated', s=10)
+    plt.title('Savings Profile')
+    plt.xlabel('Assets')
+    plt.ylabel('Savings')
+    plt.legend()
+    plt.savefig("savings_profile.png")
+
+    plt.figure(figsize=(12, 8))
+    plt.scatter(ages, n_core[:, 0], color='red', label='OG-Core', s=10)
+    plt.scatter(ages, n_interpolated, color='blue', label='n_interpolated', s=10)
+    plt.title('Labor Supply Profile')
+    plt.xlabel('Assets')
+    plt.ylabel('Labor Supply')
+    plt.legend()
+    plt.savefig("labor_profile.png")
+
+    plt.figure(figsize=(12, 8))
+    plt.scatter(ages, c_core[:, 0], color='red', label='OG-Core', s=10)
+    plt.scatter(ages, c_interpolated, color='blue', label='c_interpolated', s=10)
+    plt.title('Consumption Profile')
+    plt.xlabel('Assets')
+    plt.ylabel('Consumption')
+    plt.legend()
+    plt.savefig("consumption_profile.png")
+
     # Check that the interpolated values match the core values
     print("Max core labor = ", np.max(n_core[:, 0]), np.max(n_interpolated))
+    # print("OG Core consumption: ", c_core[:, 0])
+    # print("C interpolated: ", c_interpolated)
+    # print("OG Core labor: ", n_core[:, 0])
+    # print("n interpolated: ", n_interpolated)
+    # print("b_s: ", b_s[:, 0])
+    # print("b_grid: ", b_grid)
+    # print("OG Core savings: ", b_core[:, 0])
+    # print("savings interpolated: ", b_interpolated)
+    # print("B grid ", b_grid)
     # assert np.allclose(b_interpolated, b_core[:, 0], atol=1e-5)
+    print("Labor supply with low assets 2: ",  n_interpolated[0], n_itp(0.0), n_itp(0.001))
     assert np.allclose(n_interpolated, n_core[:, 0], atol=1e-5)
     # assert np.allclose(c_interpolated, c_core[:, 0], atol=1e-5)
 
