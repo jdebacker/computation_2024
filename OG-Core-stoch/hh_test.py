@@ -1633,22 +1633,30 @@ def test_ogcore_HH_soln():
     p = Specifications()
     print("Remittances params: ", p.alpha_RM_T)
     # Change J to one to test a single ability type
-    p.J = 1
-    p.lambdas = np.array([1.0]).reshape(1, p.J)
-    p.e = np.array([[[1.0]]])  # Effective labor units
-    p.beta = np.array([0.96])  # Discount factor
+    p.J = 2
+    p.lambdas = np.array([0.5, 0.5]).reshape(p.J, 1)
+    p.e = np.ones((p.T + p.S, p.S, p.J))  # Effective labor units
+    p.beta = np.array([0.96, 0.96]).reshape(p.J,)  # Discount factor
     p.labor_income_tax_noncompliance_rate = np.zeros((p.T, p.J))
     p.capital_income_tax_noncompliance_rate = np.zeros((p.T, p.J))
     print("Shape of eta = ", p.eta.shape, p.eta_RM.shape)
-    p.eta = p.eta.sum(axis=-1).reshape(p.T + p.S, p.S, p.J)
-    p.eta_RM = p.eta.sum(axis=-1).reshape(p.T + p.S, p.S, p.J)
-    p.ubi_nom_array = p.ubi_nom_array.sum(axis=-1).reshape(p.T + p.S, p.S, p.J) # Aggregate eta
+    p.eta = np.zeros((p.T + p.S, p.S, p.J))#p.eta.sum(axis=-1).reshape(p.T + p.S, p.S, p.J)
+    p.eta_RM = np.zeros((p.T + p.S, p.S, p.J))#p.eta.sum(axis=-1).reshape(p.T + p.S, p.S, p.J)
+    p.ubi_nom_array = np.zeros((p.T + p.S, p.S, p.J))#p.ubi_nom_array.sum(axis=-1).reshape(p.T + p.S, p.S, p.J) # Aggregate eta
     # Need to turn off Social Security since not in OG-Stoch
-    p.replacement_rate_adjust = np.zeros((p.T + p.S))
     p.PIA_rate_bkt_1 = 0.0
     p.PIA_rate_bkt_2 = 0.0
     p.PIA_rate_bkt_3 = 0.0
-
+    # set to linear tax functions
+    # p.update_specifications(
+    #     {
+    #         "age_specific": False,
+    #         "tax_func_type": "linear",
+    #         "etr_params": 0.2,
+    #         "mtrx_params": 0.22,
+    #         "mtry_params": 0.18,
+    #     }
+    # )
     # Call the inner loop to get the OG-Core solution
     bssmat = np.ones((p.S, p.J)) * 0.05
     nssmat = np.ones((p.S, p.J)) * 0.5
@@ -1674,13 +1682,14 @@ def test_ogcore_HH_soln():
         Ig_baseline,
         factor,
     )
+    print("Bssmat shape:", bssmat.shape)
     inner_loop_tuple = SS.inner_loop(outer_loop_vars, p, None)
     b_core = inner_loop_tuple[1]
     b_s = np.zeros((p.S, p.J))  # Savings from the inner loop
     b_s[1:, :] = b_core[:-1, :]  # Shift savings down for the next period
     n_core = inner_loop_tuple[2]
-    tr = hh_core.get_tr(TR, 0, p, "SS")
-    bq = hh_core.get_bq(BQ, 0, p, "SS")
+    tr = hh_core.get_tr(TR, None, p, "SS")
+    bq = hh_core.get_bq(BQ, None, p, "SS")
     num_params = len(p.etr_params[-1][0])
     etr_params_3D = [
         [
@@ -1689,25 +1698,42 @@ def test_ogcore_HH_soln():
         ]
         for s in range(p.S)
     ]
+    # taxss = tax.net_taxes(
+    #     r_p,
+    #     w,
+    #     b_s,
+    #     n_core,
+    #     bq.reshape((p.S, p.J)),
+    #     factor,
+    #     tr.reshape((p.S, p.J)),
+    #     0,  # ubi = 0
+    #     0,  # theta = 0
+    #     None,  # t
+    #     0,  # j
+    #     False,
+    #     "SS",
+    #     p.e[-1, :, j],
+    #     p.etr_params[-1],
+    #     p,
+    # )
     taxss = tax.net_taxes(
         r_p,
         w,
         b_s,
         n_core,
-        bq,
+        bq.reshape((p.S, p.J)),
         factor,
-        tr,
+        tr.reshape((p.S, p.J)),
         0,  # ubi = 0
         0,  # theta = 0
         None,  # t
-        0,  # j
+        None,  # j
         False,
         "SS",
-        p.e[-1, :, :],
+        (np.squeeze(p.e[-1, :, :])).reshape((p.S, p.J)),
         etr_params_3D,
         p,
     )
-    print("Shape of taxss:", taxss.shape)
     c_core = hh_core.get_cons(
         r_p,
         w,
@@ -1721,7 +1747,6 @@ def test_ogcore_HH_soln():
         np.squeeze(p.e[-1, :, :]),
         p,
     )
-
     # Now call the solve_HH function to get the household policy functions
     # add new parameters for solve_HH
     p.nz = 1
@@ -1729,16 +1754,18 @@ def test_ogcore_HH_soln():
     p.Z = np.array([[1.0]])
     # create b_grid for solve_HH
     b_grid = np.linspace(0.001, 12, 100)  # Asset grid for the test
+    # b_grid = np.linspace(0.00, 12, 100)  # Asset grid for the test
     # change shape of e
     p.e = np.ones((p.S))  # Effective labor units
     # call solve_HH with the same parameters as in the inner loop
+    print("shape of tr and bq here: ", tr.shape, bq.shape)
     b_policy, c_policy, n_policy = household.solve_HH(
         np.ones(p.S) * r_p,
         np.ones(p.S) * w,
         np.ones(p.S) * 1.0,  # p_tilde
         factor,
-        tr,
-        bq,
+        tr[:, 0],
+        bq[:, 0],
         0,  # ubi,
         b_grid,
         p.sigma,
@@ -1783,6 +1810,83 @@ def test_ogcore_HH_soln():
         n_interpolated[s] = n_itp(b_s[s, 0])
         c_interpolated[s] = c_itp(b_s[s, 0])
 
+    # find mu_c at the first age
+    print("b_s 0: ", b_s[0, 0], b_grid[0])
+    print("c_s 0: ", c_core[0, 0], c_interpolated[0])
+    print("n_s 0: ", n_core[0, 0], n_interpolated[0])
+    print("b_sp1 0: ", b_core[0, 0], b_interpolated[0])
+    mu_c0_core = household.marg_ut_cons(c_interpolated[0], p.sigma)
+    mu_c0_itp = household.marg_ut_cons(c_interpolated[0], p.sigma)
+    # find mu_n at the first age
+    mu_n0_core = household.marg_ut_labor(n_interpolated[0], p.chi_n[0, 0], p)
+    mu_n0_itp = household.marg_ut_labor(n_interpolated[0], p.chi_n[0, 0], p)
+    # find c implies at the first age
+    c_implied = household.c_from_n(
+        n_core[0, 0],
+        b_s[0, 0],
+        1.0,  # p_tilde
+        r_p,
+        w,
+        factor,
+        p.e[-1],
+        p.z_grid[0],
+        p.chi_n[-1, 0],
+        np.array(p.etr_params)[-1, 0, :],
+        np.array(p.mtrx_params)[-1, 0, :],
+        t=0,
+        j=0,
+        p=p,
+        method="SS",
+    )
+    print("Consumption implied by labor FOC: ", c_implied, c_core[0,0])
+    print("OG-Core mu_c0: ", mu_c0_core, "mu_c0_itp: ", mu_c0_itp)
+    print("OG-Core mu_n0: ", mu_n0_core, "mu_n0_itp: ", mu_n0_itp)
+    # check euler errors
+    labor_error = household.FOC_labor(
+        r_p,
+        w,
+        1.0,  # p_tilde
+        b_s[0, 0],
+        c_core[0, 0],
+        n_core[0, 0],
+        factor,
+        p.e[-1],
+        p.z_grid[0],
+        p.chi_n[-1, 0],
+        np.array(p.etr_params)[-1, 0, :],
+        np.array(p.mtrx_params)[-1, 0, :],
+        t=0,
+        j=0,
+        p=p,
+        method="SS",
+    )
+    print("Labor FOC error: ", labor_error)
+    # check savings FOC
+    b_sp1 = b_core  # Savings next period
+    p.e = np.ones((p.T + p.S, p.S, p.J))  # Effective labor units
+    # save_error = hh_core.FOC_savings(
+    #     r_p,
+    #     w,
+    #     1.0,  # p_tilde
+    #     b_s,
+    #     b_sp1,
+    #     n_core,
+    #     bq.reshape((p.S, 1)),
+    #     0,  # rm
+    #     factor,
+    #     tr.reshape((p.S, 1)),
+    #     0,  # ubi
+    #     0,  # theta
+    #     p.rho[-1, :],
+    #     np.array(p.etr_params)[-1, :, :],
+    #     np.array(p.mtry_params)[-1, :, :],
+    #     0,  # t
+    #     0,  # j
+    #     p,
+    #     method="SS",
+    # )
+    # print("Savings FOC error: ", save_error)
+
     # Create a plot to visualize the results
     import matplotlib.pyplot as plt
     plt.figure(figsize=(12, 8))
@@ -1790,7 +1894,7 @@ def test_ogcore_HH_soln():
     plt.scatter(b_s[:, 0], b_interpolated, color='blue', label='b_interpolated', s=10)
     plt.scatter(b_grid, b_itp(b_grid), color='green', label='b_itp', s=10)
     plt.title('Savings Policy Function')
-    plt.xlabel('Assets')
+    plt.xlabel('Age')
     plt.ylabel('Savings')
     plt.legend()
     plt.savefig("savings_policy_function.png")
@@ -1800,7 +1904,7 @@ def test_ogcore_HH_soln():
     plt.scatter(b_s[:, 0], n_interpolated, color='blue', label='n_interpolated', s=10)
     plt.scatter(b_grid, n_itp(b_grid), color='green', label='n_itp', s=10)
     plt.title('Labor Policy Function')
-    plt.xlabel('Assets')
+    plt.xlabel('Age')
     plt.ylabel('Labor Supply')
     plt.legend()
     plt.savefig("labor_policy_function.png")
@@ -1810,7 +1914,7 @@ def test_ogcore_HH_soln():
     plt.scatter(b_s[:, 0], c_interpolated, color='blue', label='c_interpolated', s=10)
     plt.scatter(b_grid, c_itp(b_grid), color='green', label='c_itp', s=10)
     plt.title('Consumption Policy Function')
-    plt.xlabel('Assets')
+    plt.xlabel('Age')
     plt.ylabel('Consumption')
     plt.legend()
     plt.savefig("consumption_policy_function.png")
@@ -1844,6 +1948,7 @@ def test_ogcore_HH_soln():
     plt.legend()
     plt.savefig("consumption_profile.png")
 
+    print("B grid: = ", b_grid)
     # Check that the interpolated values match the core values
     print("Max core labor = ", np.max(n_core[:, 0]), np.max(n_interpolated))
     # print("OG Core consumption: ", c_core[:, 0])
@@ -1858,7 +1963,10 @@ def test_ogcore_HH_soln():
     # assert np.allclose(b_interpolated, b_core[:, 0], atol=1e-5)
     # print("Labor supply with low assets 2: ",  n_interpolated[0], n_itp(0.0), n_itp(0.001))
     assert np.allclose(n_interpolated, n_core[:, 0], atol=1e-5)
+
     # assert np.allclose(c_interpolated, c_core[:, 0], atol=1e-5)
 
     print("Dims of OG-Core output:", b_core.shape, c_core.shape, n_core.shape)
     # assert False
+
+# %%
