@@ -1754,6 +1754,8 @@ def test_ogcore_HH_soln():
     p.Z = np.array([[1.0]])
     # create b_grid for solve_HH
     b_grid = np.linspace(0.001, 12, 100)  # Asset grid for the test
+    # make log linear grid
+    # b_grid = np.exp(np.linspace(np.log(0.001), np.log(12), 100))  # Asset grid for the test
     # b_grid = np.linspace(0.00, 12, 100)  # Asset grid for the test
     # change shape of e
     p.e = np.ones((p.S))  # Effective labor units
@@ -1860,32 +1862,75 @@ def test_ogcore_HH_soln():
         p=p,
         method="SS",
     )
-    print("Labor FOC error: ", labor_error)
+    print("Labor FOC error OG-Core: ", labor_error)
+    labor_error = household.FOC_labor(
+        r_p,
+        w,
+        1.0,  # p_tilde
+        b_s[0, 0],
+        c_interpolated[0],
+        n_interpolated[0],
+        factor,
+        p.e[-1],
+        p.z_grid[0],
+        p.chi_n[-1, 0],
+        np.array(p.etr_params)[-1, 0, :],
+        np.array(p.mtrx_params)[-1, 0, :],
+        t=0,
+        j=0,
+        p=p,
+        method="SS",
+    )
+    print("Labor FOC error OG-Stoch: ", labor_error)
     # check savings FOC
     b_sp1 = b_core  # Savings next period
     p.e = np.ones((p.T + p.S, p.S, p.J))  # Effective labor units
-    # save_error = hh_core.FOC_savings(
-    #     r_p,
-    #     w,
-    #     1.0,  # p_tilde
-    #     b_s,
-    #     b_sp1,
-    #     n_core,
-    #     bq.reshape((p.S, 1)),
-    #     0,  # rm
-    #     factor,
-    #     tr.reshape((p.S, 1)),
-    #     0,  # ubi
-    #     0,  # theta
-    #     p.rho[-1, :],
-    #     np.array(p.etr_params)[-1, :, :],
-    #     np.array(p.mtry_params)[-1, :, :],
-    #     0,  # t
-    #     0,  # j
-    #     p,
-    #     method="SS",
-    # )
-    # print("Savings FOC error: ", save_error)
+    save_error = hh_core.FOC_savings(
+        r_p,
+        w,
+        1.0,  # p_tilde
+        b_s[:, 0],
+        b_sp1[:, 0],
+        n_core[:, 0],
+        bq[:, 0],
+        0,  # rm
+        factor,
+        tr[:, 0],
+        0,  # ubi
+        0,  # theta
+        p.rho[-1, :],
+        np.array(p.etr_params)[-1, :, :],
+        np.array(p.mtry_params)[-1, :, :],
+        0,  # t
+        0,  # j
+        p,
+        method="SS",
+    )
+    print("Savings FOC error from OG-Core: ", save_error[0])
+    save_error = hh_core.FOC_savings(
+        r_p,
+        w,
+        1.0,  # p_tilde
+        b_s[:, 0],
+        b_interpolated,
+        n_interpolated,
+        bq[:, 0],
+        0,  # rm
+        factor,
+        tr[:, 0],
+        0,  # ubi
+        0,  # theta
+        p.rho[-1, :],
+        np.array(p.etr_params)[-1, :, :],
+        np.array(p.mtry_params)[-1, :, :],
+        0,  # t
+        0,  # j
+        p,
+        method="SS",
+    )
+    print("Savings FOC error from OG-Stoch: ", save_error[0])
+
+
 
     # Create a plot to visualize the results
     import matplotlib.pyplot as plt
@@ -1948,7 +1993,6 @@ def test_ogcore_HH_soln():
     plt.legend()
     plt.savefig("consumption_profile.png")
 
-    print("B grid: = ", b_grid)
     # Check that the interpolated values match the core values
     print("Max core labor = ", np.max(n_core[:, 0]), np.max(n_interpolated))
     # print("OG Core consumption: ", c_core[:, 0])
